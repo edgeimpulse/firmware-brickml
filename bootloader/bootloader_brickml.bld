@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ddscBootloader>
+    <symbols>
+        <symbol name="FSP_BOOTABLE_IMAGE" value="0x00000001"/>
+        <symbol name="RAM_NS_START" value="0x20080000"/>
+        <symbol name="FLASH_NS_START" value="0x00100000"/>
+        <symbol name="FLASH_IMAGE_END" value="0x00100000"/>
+        <symbol name="FLASH_NS_IMAGE_START" value="0x00100000"/>
+        <symbol name="FLASH_NSC_START" value="0x00100000"/>
+        <symbol name="RAM_NSC_START" value="0x20080000"/>
+        <symbol name="FLASH_IMAGE_LENGTH" value="0x000DFE00"/>
+        <symbol name="XIP_SECONDARY_FLASH_IMAGE_END" value="0x001E0000"/>
+        <symbol name="XIP_SECONDARY_FLASH_IMAGE_START" value="0x00100200"/>
+        <symbol name="FLASH_IMAGE_START" value="0x00020200"/>
+        <symbol name="FLASH_IMAGE_START" value="0x00100000" security="n"/>
+        <symbol name="FSP_BOOTABLE_IMAGE" value="0x00000001" security="n"/>
+        <symbol name="FLASH_IMAGE_LENGTH" value="0x00100000" security="n"/>
+    </symbols>
+    <images>
+        <image path="${BuildArtifactFileBaseName}.bin.signed">python3 ${workspace_loc:firmware-brickml}/bootloader/rm_mcuboot_port_sign.py sign --header-size 0x200 --align 128 --max-align 128 --slot-size 0xe0000 --max-sectors 28 --overwrite-only  --confirm --pad-header ${BuildArtifactFileName} ${BuildArtifactFileBaseName}.bin.signed</image>
+        <image path="${BuildArtifactFileBaseName}.bin.signed" security="n">python3 ${workspace_loc:firmware-brickml}/bootloader/rm_mcuboot_port_sign.py sign --header-size 0x200 --align 128 --max-align 128 --slot-size 0x0 --max-sectors 28 --overwrite-only  --confirm --pad-header ${BuildArtifactFileName} ${BuildArtifactFileBaseName}.bin.signed</image>
+    </images>
+</ddscBootloader>

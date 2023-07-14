@@ -1,0 +1,16 @@
+Debug
+.DS_Store
+ra
+ra_cfg
+ra_gen
+.vscode
+.settings/language.settings.xml
+.settings/e2studio_project.prefs
+.settings/com.renesas.cdt.ddsc.packs.componentfiles.prefs 
+firmware-brickml-signed-offset.srec
+firmware-brickml-w-bootloader.srec
+*.jlink
+*.pyc
+
+src/edge-impulse/firmware-sdk
+src/edge-impulse/edge-impulse-sdk
