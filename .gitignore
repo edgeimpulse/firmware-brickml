@@ -11,6 +11,3 @@ firmware-brickml-signed-offset.srec
 firmware-brickml-w-bootloader.srec
 *.jlink
 *.pyc
-
-src/edge-impulse/firmware-sdk
-src/edge-impulse/edge-impulse-sdk
