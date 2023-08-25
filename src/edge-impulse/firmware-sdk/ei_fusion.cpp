@@ -479,8 +479,8 @@ const vector<fused_sensors_t> &ei_get_sensor_fusion_list(void)
 static void print_fusion_list(int r, uint32_t ingest_memory_size)
 {
     /* A temporary array to store all combination one by one */
-    int data[r];
-    int arr[fusable_sensor_list.size()];
+    auto data = new int[r];
+    auto arr = new int[fusable_sensor_list.size()];
 
     for (unsigned int i = 0; i < fusable_sensor_list.size(); i++) {
         arr[i] = i;
@@ -488,6 +488,8 @@ static void print_fusion_list(int r, uint32_t ingest_memory_size)
 
     /* Print all combination using temporary array 'data[]' */
     print_all_combinations(arr, data, 0, 0, r, ingest_memory_size);
+    delete[] data;
+    delete[] arr;
 }
 
 /**

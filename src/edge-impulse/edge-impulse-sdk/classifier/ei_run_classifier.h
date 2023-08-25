@@ -67,17 +67,6 @@
 void*   __dso_handle = (void*) &__dso_handle;
 #endif
 
-// EI_CLASSIFIER_CALIBRATION_ENABLED needs to be added to new
-// model metadata, since we are getting rid of macro for sensors
-// (multiple impulses means we can have multiple sensors)
-// for now we just enable it if EI_CLASSIFIER_SENSOR is present and
-// is microphone (performance calibration only works for mic).
-#if defined(EI_CLASSIFIER_SENSOR) && (EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_MICROPHONE)
-#define EI_CLASSIFIER_CALIBRATION_ENABLED 1
-#else
-#define EI_CLASSIFIER_CALIBRATION_ENABLED 0
-#endif
-
 #ifdef __cplusplus
 namespace {
 #endif // __cplusplus
@@ -499,7 +488,7 @@ __attribute__((unused)) static EI_IMPULSE_ERROR can_run_classifier_image_quantiz
 #if EI_CLASSIFIER_QUANTIZATION_ENABLED == 1 && (EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_TFLITE || EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_TENSAIFLOW || EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_DRPAI || EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_ONNX_TIDL)
 
 /**
- * Special function to run the classifier on images, only works on TFLite models (either interpreter, EON, tensaiflow, drpai or tidl)
+ * Special function to run the classifier on images, only works on TFLite models (either interpreter, EON, tensaiflow, drpai, tidl, memryx)
  * that allocates a lot less memory by quantizing in place. This only works if 'can_run_classifier_image_quantized'
  * returns EI_IMPULSE_OK.
  */

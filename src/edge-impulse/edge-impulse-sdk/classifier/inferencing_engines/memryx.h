@@ -118,7 +118,7 @@ bool init_memryx(bool debug, const ei_impulse_t *impulse)
     std::string proj_model_path = project_file_path + "/memryx_trained.dfp";
     const char * model_file_path = proj_model_path.c_str();
 #if (defined(EI_CLASSIFIER_USE_MEMRYX_HARDWARE) && (EI_CLASSIFIER_USE_MEMRYX_HARDWARE == 1))
-#warning "Trying to use hardware"
+#warning "Building EIM for use with MemryX Hardware"
     memx_status status = MEMX_STATUS_OK;
     // 1. Bind MPU device group 0 as MX3:Cascade to model 0.
     status = memx_open(model_id, group_id, MEMX_DEVICE_CASCADE);
@@ -265,12 +265,13 @@ EI_IMPULSE_ERROR run_nn_inference(
     }
 
     // init softmax shape
-    std::vector<size_t> output_shape = {12,12,2};
+    std::vector<size_t> output_shape = {static_cast<size_t>(ofmap_height),static_cast<size_t>(ofmap_width),
+                                        static_cast<size_t>(ofmap_channel_number)};
     softmax_shape.BuildFrom(output_shape);
     // dumy beta parameter for softmax purposes
     dummy_params.beta = 1;
 
-    // apply softmax, becuase Akida is not supporting this operation
+    // apply softmax, becuase MX3 does not support this operation
     tflite::reference_ops::Softmax(dummy_params, softmax_shape, ofmap, softmax_shape, ofmap);
 
     // handle inference outputs
@@ -287,7 +288,7 @@ EI_IMPULSE_ERROR run_nn_inference(
                 break;
             }
             case EI_CLASSIFIER_LAST_LAYER_SSD: {
-                ei_printf("Mobilenet SSD executed on Memryx\n");
+                ei_printf("Mobilenet SSD is not implemented for Edge Impulse MemryX engine, please contact Edge Impulse Support\n");
                 break;
             }
             default: {
