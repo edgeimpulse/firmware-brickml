@@ -25,9 +25,10 @@
 #include "edge-impulse-sdk/classifier/ei_run_classifier.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
 #include "sensors/ei_microphone.h"
-#include "inference/ei_run_impulse.h"   // header
+#include "inference/ei_run_impulse.h"
 #include "ingestion-sdk-platform/brickml/ei_device_brickml.h"
 #include "model-parameters/model_variables.h"
+#include "peripheral/i2s.h"
 
 typedef enum {
     INFERENCE_STOPPED,
@@ -45,6 +46,7 @@ static bool continuous_mode = false;
 static bool debug_mode = false;
 //static float samples_circ_buff[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
 static int samples_wr_index = 0;
+static uint32_t i2s_buf_len = 0;
 
 static void display_results(ei_impulse_result_t* result);
 /* ------------------------------------------------------------------------- */
@@ -71,14 +73,14 @@ void ei_run_impulse(void)
             return;
             break;
         case INFERENCE_SAMPLING:
-            ei_mic_thread(&inference_samples_callback);
+            ei_mic_thread(&inference_samples_callback, i2s_buf_len);
             if (ei_microphone_inference_is_recording() == true)
             {
                 return;    /* not sure */
             }
             state = INFERENCE_DATA_READY;
             ei_printf("Recording done\n");
-            dev->set_state(eiBrickMLStateRunImpulse);
+            dev->set_state(eiBrickMLStateSampling);
             break;
         case INFERENCE_DATA_READY:
             // nothing to do, just continue to inference provcessing below
@@ -135,6 +137,8 @@ void ei_run_impulse(void)
  */
 void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
 {
+    EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
+
     const float sample_length = 1000.0f * static_cast<float>(EI_CLASSIFIER_RAW_SAMPLE_COUNT) /
                         (1000.0f / static_cast<float>(EI_CLASSIFIER_INTERVAL_MS));
 
@@ -153,6 +157,14 @@ void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
     ei_printf("\tNo. of classes: %d\n", sizeof(ei_classifier_inferencing_categories) /
                                             sizeof(ei_classifier_inferencing_categories[0]));
     ei_printf("Starting inferencing, press 'b' to break\n");
+
+    uint32_t freq = (1/EI_CLASSIFIER_INTERVAL_MS)*1000;
+    i2s_buf_len = ei_i2s_get_buf_len((uint32_t)freq);
+
+    if (ei_mic_init(freq) == false) {
+        ei_printf("Error in microphone initialization\r\n");
+        return;
+    }
 
     if (continuous == true) {
         samples_per_inference = EI_CLASSIFIER_SLICE_SIZE * EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME;
@@ -173,10 +185,6 @@ void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
         dev->set_state(eiBrickMLStateIdle);
     }
 
-    /*
-     * TODO
-     * right parameters
-     */
     if (ei_microphone_inference_start(continuous_mode ? EI_CLASSIFIER_SLICE_SIZE : EI_CLASSIFIER_RAW_SAMPLE_COUNT, EI_CLASSIFIER_INTERVAL_MS) == false){
         ei_printf("ERR: Could not allocate audio buffer (size %d), this could be due to the window length of your model\r\n", EI_CLASSIFIER_RAW_SAMPLE_COUNT);
         return;
@@ -199,6 +207,7 @@ void ei_stop_impulse(void)
         run_classifier_deinit();
     }
 
+    ei_mic_deinit();
     dev->set_state(eiBrickMLStateIdle);
     state = INFERENCE_STOPPED;
 }

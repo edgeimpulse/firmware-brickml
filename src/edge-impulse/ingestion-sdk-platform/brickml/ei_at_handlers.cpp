@@ -26,7 +26,7 @@
 #include "lib/xmodem/xmodem.h"
 #include "peripheral/board_ctrl.h"
 #include "peripheral/flash_handler.h"
-
+#include <cmath>
 #include "FreeRTOS.h"
 #include "task.h"
 

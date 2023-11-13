@@ -20,8 +20,6 @@
 EiQspiMemory::EiQspiMemory():
     EiDeviceMemory(0, 90, QSPI_MEMORY_SIZE, SECTOR_SIZE)
 {
-    used_blocks = 0;    // config is done in data flash (for now)
-    //flash_handler_init();
     residual_to_write = 0;
     memset(residual_array, 0, sizeof(residual_array));
     last_offset = 0;

@@ -33,6 +33,8 @@ void ei_microphone_inference_reset_buffers(void);
 bool ei_microphone_inference_end(void);
 void ei_mic_thread(mic_sampler_callback cb, uint32_t buffer_len);
 void inference_samples_callback(const int16_t *buffer, uint32_t sample_count);
+bool ei_mic_init(uint32_t freq);
+void ei_mic_deinit(void);
 
 
 #endif /* INGESTION_SDK_PLATFORM_SENSORS_EI_MICROPHONE_H_ */

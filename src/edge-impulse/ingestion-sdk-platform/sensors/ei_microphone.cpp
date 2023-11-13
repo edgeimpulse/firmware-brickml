@@ -22,7 +22,7 @@
 #include "ingestion-sdk/sensor_aq_mbedtls_hs256.h"
 #include "ingestion-sdk/ei_sampler.h"
 #include "firmware-sdk/ei_device_info_lib.h"
-#include "firmware-sdk/sensor_aq.h"
+#include "firmware-sdk/sensor-aq/sensor_aq.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
 
 //#include "ei_dc_blocking.h"
@@ -48,12 +48,8 @@ static size_t ei_write(const void *buffer, size_t size, size_t count, EI_SENSOR_
 static int ei_seek(EI_SENSOR_AQ_STREAM * stream, long int offset, int origin);
 static int insert_ref(char *buffer, int hdrLength);
 static bool create_header(sensor_aq_payload_info *payload);
-
-
 static void ingestion_samples_callback(const int16_t *buffer, uint32_t sample_count);
 
-static bool ei_mic_init(uint32_t freq);
-static void ei_mic_deinit(void);
 
 /* Private variables ------------------------------------------------------- */
 static inference_t inference;
@@ -509,7 +505,7 @@ static bool create_header(sensor_aq_payload_info *payload)
 /**
  *
  */
-static bool ei_mic_init(uint32_t freq)
+bool ei_mic_init(uint32_t freq)
 {
     int err_code = ei_i2s_init(freq);
 
@@ -522,7 +518,7 @@ static bool ei_mic_init(uint32_t freq)
 /**
  *
  */
-static void ei_mic_deinit(void)
+void ei_mic_deinit(void)
 {
     ei_sleep(1000);
 
