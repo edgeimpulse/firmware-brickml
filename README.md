@@ -6,6 +6,7 @@ Edge Impulse enables developers to create the next generation of intelligent dev
 ### Hardware
 
 * [BrickML](https://www.edgeimpulse.com/reference-designs/brickml)
+* [BrickML SoM](https://eu.mouser.com/new/reloc/reloc-brick-ml-system-on-module/)
 
 ### Software
 * [Renesas e2studio](https://www.renesas.com/us/en/software-tool/e-studio)
@@ -41,19 +42,25 @@ Toolchain ARM GCC 10.3.2021
     docker build -t edge-impulse-brickml .
     ```
 
-1. Build firmware
+1. Build firmware for the boxed BrickML
 
     ```
     docker run --rm -v $PWD:/app/workspace/firmware-brickml edge-impulse-brickml
     ```
 
+1. Build firmware for the BrickML SoM
+
+    ```
+    docker run --rm -v $PWD:/app/workspace/firmware-brickml -e TARGET=som edge-impulse-brickml
+    ```
 
 ## Flashing
 
 To update the firwmare, use the provided script ei_uploader.py
-```
-python3 ei_uploader.py -s <serial_port> -f <bin to update>
-```
+
+    ```
+    python3 ei_uploader.py -s <serial_port> -f <bin to update>
+    ```
 
 The -f parameter is optional, by default the file to be uploaded is `firmware-brickml.bin.signed`.
 

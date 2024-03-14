@@ -5,6 +5,8 @@ WORKDIR /app
 # Disable Prompt During Packages Installation
 ARG DEBIAN_FRONTEND=noninteractive
 
+ENV TARGET=boxed
+
 # Install Java 11 for e2 studio
 RUN apt-get update && apt-get -y --fix-missing --no-install-recommends install \
     openjdk-11-jre xz-utils ca-certificates tar xzip gzip bzip2 zip \
@@ -78,4 +80,4 @@ RUN rm -rf ${ENV_E2STUDIO_DEFAULT_WS} && \
 
 RUN cd /bin && ln -s /opt/gcc-arm-none-eabi-10.3-2021.10/bin/* .
 
-CMD pip3 install --user -r ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/bootloader/mcu-tools/MCUboot/scripts/requirements.txt && chmod +x ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/build.sh && ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/build.sh
+CMD pip3 install --user -r ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/bootloader/mcu-tools/MCUboot/scripts/requirements.txt && chmod +x ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/build.sh && ${ENV_E2STUDIO_DEFAULT_WS}/firmware-brickml/build.sh --${TARGET}

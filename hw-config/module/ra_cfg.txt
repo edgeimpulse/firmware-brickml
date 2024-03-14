@@ -693,7 +693,7 @@ FSP Configuration
         Name: g_basic0
         USB Mode: Peri mode
         USB Speed: Full Speed
-        USB Module Number: USB_IP1 Port
+        USB Module Number: USB_IP0 Port
         USB Device Class: Peripheral Communications Device Class
         USB Descriptor: g_usb_descriptor
         USB Compliance Callback: NULL
