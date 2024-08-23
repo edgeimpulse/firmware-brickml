@@ -11,3 +11,4 @@ firmware-brickml-signed-offset.srec
 firmware-brickml-w-bootloader.srec
 *.jlink
 *.pyc
+create-arduino-library.sh
