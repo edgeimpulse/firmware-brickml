@@ -23,7 +23,6 @@
 #define NUM_FUSION_SENSORS          5      // number of usable sensor modules
 #define FUSION_FREQUENCY            12.5f  // sampling frequency for fusion samples
 #define NUM_MAX_FUSION_AXIS         20     // max number of axis to sample
-#define SIZEOF_SENSOR_NAME          20     // char alloc for sensor module name
 
 #define MULTI_FREQ_ENABLED          1       // enables multi freq for sensor fusion
 

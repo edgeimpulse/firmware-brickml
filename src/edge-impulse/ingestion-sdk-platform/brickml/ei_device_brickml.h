@@ -50,13 +50,15 @@ private:
     ei_device_sensor_t sensors[EI_DEVICE_N_SENSORS];
     EiBrickMlState state;
     EiDeviceMemory *data_flash;
+    EiDeviceMemory *sd_card;
 
     bool is_sampling;
     void (*sample_read_callback)(void);
     void (*sample_multi_read_callback)(uint8_t);
+    bool sd_storage;
 
 public:
-    EiBrickml(EiDeviceMemory* code_flash, EiDeviceMemory* data_flash_to_set);
+    EiBrickml(EiDeviceMemory* code_flash, EiDeviceMemory* data_flash_to_set, EiDeviceMemory *sd_card_to_set);
     ~EiBrickml();
     void init_device_id(void);
     void load_config(void) override;
@@ -82,6 +84,11 @@ public:
 #if MULTI_FREQ_ENABLED == 1
     bool start_multi_sample_thread(void (*sample_multi_read_cb)(uint8_t), float* multi_sample_interval_ms, uint8_t num_fusioned);
 #endif
+    void set_sd_storage(bool to_set){sd_storage = to_set;};
+    bool is_sd_in_use(void) {return (sd_storage);};
+    bool is_sd_present(void);
+    EiDeviceMemory* get_device_memory_in_use(void);
+    bool init_sd(void);
 };
 
 #endif /* EI_DEVICE_TEMPLATE_H_ */

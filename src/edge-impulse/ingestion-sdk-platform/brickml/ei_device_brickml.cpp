@@ -23,6 +23,7 @@
 #include "ei_device_brickml.h"
 #include "ei_flash_memory.h"
 #include "ei_qspi_memory.h"
+#include "ei_sd_memory.h"
 #include "comms.h"
 #include "peripheral/timer_handler.h"
 #include "ingestion-sdk-platform/sensors/ei_microphone.h"
@@ -37,10 +38,11 @@
  *
  ******/
 
-EiBrickml::EiBrickml(EiDeviceMemory* code_flash, EiDeviceMemory* data_flash_to_set)
+EiBrickml::EiBrickml(EiDeviceMemory* code_flash, EiDeviceMemory* data_flash_to_set, EiDeviceMemory *sd_card_to_set)
 {
     EiDeviceInfo::memory = code_flash;
     EiBrickml::data_flash = data_flash_to_set;
+    EiBrickml::sd_card = sd_card_to_set;
 
     init_device_id();
 
@@ -55,6 +57,8 @@ EiBrickml::EiBrickml(EiDeviceMemory* code_flash, EiDeviceMemory* data_flash_to_s
     sensors[MICROPHONE].start_sampling_cb = &ei_microphone_sample_start;
 
     sensors[MICROPHONE].max_sample_length_s = (uint16_t)(code_flash->get_available_sample_bytes() / (sensors[MICROPHONE].frequencies[1] * sizeof(microphone_sample_t)));
+
+    sd_storage = true;  // by default on sd card
 }
 
 EiBrickml::~EiBrickml()
@@ -69,7 +73,8 @@ EiDeviceInfo* EiDeviceInfo::get_device(void)
      */
     static EiQspiMemory code_memory;
     static EiFlashMemory data_memory(e_flash_data, sizeof(EiConfig));                  /* code flash doesn't store config !*/
-    static EiBrickml dev(&code_memory, &data_memory);
+    static EiSDMemory sd_card_to_set;
+    static EiBrickml dev(&code_memory, &data_memory, &sd_card_to_set);
 
     return &dev;
 }
@@ -99,19 +104,21 @@ void EiBrickml::load_config(void)
     memset(&buf, 0, sizeof(EiConfig));
     data_flash->load_config((uint8_t *)&buf, sizeof(EiConfig)); /* load from data flash */
 
-    if (buf.magic == 0xdeadbeef)
-    {
+    if (buf.magic == 0xdeadbeef) {
         wifi_ssid = std::string(buf.wifi_ssid, 128);
         wifi_password = std::string(buf.wifi_password, 128);
         wifi_security = buf.wifi_security;
         sample_interval_ms = buf.sample_interval_ms;
         sample_length_ms = buf.sample_length_ms;
+        sensor_label = std::string(buf.sensor_label, 128);
         sample_label = std::string(buf.sample_label, 128);
         sample_hmac_key = std::string(buf.sample_hmac_key, 33);
         upload_host = std::string(buf.upload_host, 128);
         upload_path = std::string(buf.upload_path, 128);
         upload_api_key = std::string(buf.upload_api_key, 128);
         management_url = std::string(buf.mgmt_url, 128);
+        long_recording_length_ms = buf.long_recording_length_ms;
+        long_recording_interval_ms = buf.long_recording_interval_ms;
     }
 }
 
@@ -126,11 +133,14 @@ bool EiBrickml::save_config(void)
     buf.wifi_security = wifi_security;
     buf.sample_interval_ms = sample_interval_ms;
     buf.sample_length_ms = sample_length_ms;
+    strncpy(buf.sensor_label, sensor_label.c_str(), 128);
     strncpy(buf.sample_label, sample_label.c_str(), 128);
     strncpy(buf.sample_hmac_key, sample_hmac_key.c_str(), 33);
     strncpy(buf.upload_host, upload_host.c_str(), 128);
     strncpy(buf.upload_path, upload_path.c_str(), 128);
     strncpy(buf.upload_api_key, upload_api_key.c_str(), 128);
+    buf.long_recording_length_ms = long_recording_length_ms;
+    buf.long_recording_interval_ms = long_recording_interval_ms;
     strncpy(buf.mgmt_url, management_url.c_str(), 128);
     buf.magic = 0xdeadbeef;
 
@@ -306,61 +316,79 @@ bool EiBrickml::get_sensor_list(const ei_device_sensor_t **sensor_list, size_t *
     *sensor_list_size = 0;
 #endif
 
-    return false;   // ?
+    return false;
 }
 
-
-bool EiBrickml::test_flash(void)
-{
-    static const uint32_t buffer_size = 10000;
-    EiQspiMemory* mem_flash = static_cast<EiQspiMemory*>(this->get_memory());
-
-    uint8_t pippo[buffer_size];
-    uint8_t leggi_pippo[buffer_size];
-
-    for (uint16_t i = 0; i< buffer_size; i++)
-    {
-        pippo[i] = (uint8_t)i;
-    }
-
-    if (mem_flash->erase_sample_data(0, buffer_size) != buffer_size) {
-        return false;
-    }
-
-    if (mem_flash->write_sample_data(pippo, 0, buffer_size) != buffer_size) {
-        return false;
-    }
-    mem_flash->write_residual();
-
-    if (mem_flash->read_sample_data(&leggi_pippo[0], 0, buffer_size) != buffer_size) {
-        return false;
-    }
-
-    for (uint16_t i = 0; i < buffer_size; i++)
-    {
-        if (pippo[i] != leggi_pippo[i]) {
-            ei_printf("Error at %d expecting %d but found %d\n", i, pippo[i], leggi_pippo[i]);
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
+/**
+ * @brief 
+ * 
+ */
 void EiBrickml::set_default_data_output_baudrate(void)
 {
-    //usb_set_high_speed
+    // USB connection, baud is handled by host
 }
 
+/**
+ * @brief 
+ * 
+ */
 void EiBrickml::set_max_data_output_baudrate(void)
 {
-    //usb_set_high_speed();
+    // USB connection, baud is handled by host
 }
 
+/**
+ * @brief 
+ * 
+ * @return true 
+ * @return false 
+ */
 bool EiBrickml::is_max_baudrate(void)
 {
     uint32_t actual_baud;
     actual_baud = usb_get_speed();
     return (actual_baud == MAX_BAUD_RATE);
+}
+
+/**
+ * @brief Initialise sd card and returns if present or not
+ */
+bool EiBrickml::init_sd(void)
+{
+    EiSDMemory *mysd = static_cast<EiSDMemory*>(this->sd_card);
+#if (BRICKML_SOM == 0)
+    sd_storage = mysd->init();
+#else
+    sd_storage = false;
+#endif
+
+    return sd_storage;
+}
+
+/**
+ * @brief Check if sd is present
+ * @return
+ */
+bool EiBrickml::is_sd_present(void)
+{
+    EiSDMemory *mysd = static_cast<EiSDMemory*>(this->sd_card);
+
+    return mysd->is_inserted();
+}
+
+/**
+ * @brief Returns pointer to memory device in use
+ * 
+ * @return EiDeviceMemory* 
+ */
+EiDeviceMemory* EiBrickml::get_device_memory_in_use(void)
+{
+    EiSDMemory *mysd = static_cast<EiSDMemory*>(this->sd_card);
+
+    if ((sd_storage == true) && (mysd->is_inserted())) {
+        return sd_card;
+    }
+    else {
+        return memory;
+    }
 }

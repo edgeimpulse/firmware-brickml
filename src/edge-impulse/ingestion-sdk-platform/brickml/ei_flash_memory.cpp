@@ -151,29 +151,6 @@ uint32_t EiFlashMemory::write_data(const uint8_t *data, uint32_t address, uint32
 }
 
 /**
- * @brief Write last data (if any)
- */
-void EiFlashMemory::write_residual(void)
-{
-    uint32_t written = 0;
-
-    if (residual_to_write > 0)
-    {
-        for (uint8_t i = residual_to_write; i < write_size_multiple; i++) {
-            residual_array[i] = 0xFF;   // fill
-        }
-
-        written = flash_handler_write((t_flash_memory)flash_type, (base_address + bytes_written), residual_array, write_size_multiple);
-        last_offset += written;
-        bytes_written += written;
-
-        residual_to_write = 0;
-        memset(residual_array, 0xFF, sizeof(residual_array));   /* fill with 0xFF */
-    }
-
-}
-
-/**
  *
  * @param address - memory offset
  * @param num_bytes bytes to be erased
@@ -224,4 +201,30 @@ uint32_t EiFlashMemory::write_sample_data(uint8_t *sample_data, uint32_t address
 uint32_t EiFlashMemory::erase_sample_data(uint32_t address, uint32_t num_bytes)
 {
     return erase_data(address, num_bytes);
+}
+
+/**
+ * @brief 
+ * 
+ * @return uint32_t 
+ */
+uint32_t EiFlashMemory::flush_data(void)
+{
+    uint32_t written = 0;
+
+    if (residual_to_write > 0)
+    {
+        for (uint8_t i = residual_to_write; i < write_size_multiple; i++) {
+            residual_array[i] = 0xFF;   // fill
+        }
+
+        written = flash_handler_write((t_flash_memory)flash_type, (base_address + bytes_written), residual_array, write_size_multiple);
+        last_offset += written;
+        bytes_written += written;
+
+        residual_to_write = 0;
+        memset(residual_array, 0xFF, sizeof(residual_array));   /* fill with 0xFF */
+    }
+
+    return 0; // ?
 }

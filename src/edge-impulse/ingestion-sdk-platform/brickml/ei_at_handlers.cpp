@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2022 EdgeImpulse Inc.
  *
@@ -15,6 +14,10 @@
  *
  */
 /* Include ----------------------------------------------------------------- */
+#include "FreeRTOS.h"
+#include "task.h"
+
+#include <cmath>
 #include "ei_at_handlers.h"
 #include "edge-impulse-sdk/porting/ei_classifier_porting.h"
 #include "ei_fusion.h"
@@ -26,15 +29,19 @@
 #include "lib/xmodem/xmodem.h"
 #include "peripheral/board_ctrl.h"
 #include "peripheral/flash_handler.h"
-#include <cmath>
-#include "FreeRTOS.h"
-#include "task.h"
+#include "ingestion-sdk-platform/brickml/ei_sd_memory.h"
+#include "ingestion_thread.h"
+#include "at_base64_lib.h"
+#include "comms.h"
 
-#define AT_UPDATEFIRMWARE           "UPDATEFIRMWARE"
-#define AT_UPDATEFILE_HELP_TEXT     "Update firmware"
+#define AT_UPDATEFIRMWARE               "UPDATEFIRMWARE"
+#define AT_UPDATEFILE_HELP_TEXT         "Update firmware"
+
+#define AT_SETSTORAGESD                 "SETSTORAGESD"
+#define AT_SETSTORAGESD_HELP_TEXT       "Set storage on SD or flash"
+#define AT_SETSTORAGESD_ARGS            "SET_SD or SET_FLASH"
 
 EiBrickml *pei_device;
-extern TaskHandle_t usb_thread;
 
 /* Private function declaration */
 static bool at_list_config(void);
@@ -65,6 +72,11 @@ static bool at_set_mgmt_settings(const char **argv, const int argc);
 
 static bool at_update_firmware(void);
 
+static bool at_set_sd_storage(const char **argv, const int argc);
+static bool at_set_ingestion_settings(const char **argv, const int argc);
+static bool at_get_ingestion_settings(void);
+static bool at_start_ingestion(void);
+
 static inline bool check_args_num(const int &required, const int &received);
 static bool local_read_encode_send_sample_buffer(size_t address, size_t length);
 
@@ -94,7 +106,10 @@ ATServer *ei_at_init(EiBrickml *ei_device)
     at->register_command(AT_READRAW, AT_READRAW_HELP_TEXT, nullptr, nullptr, at_read_raw, AT_READRAW_ARS);
     at->register_command(AT_UNLINKFILE, AT_UNLINKFILE_HELP_TEXT, nullptr, nullptr, at_unlink_file, AT_UNLINKFILE_ARGS);
     at->register_command(AT_UPDATEFIRMWARE, AT_UPDATEFILE_HELP_TEXT, at_update_firmware, nullptr, nullptr, nullptr);
-
+    at->register_command(AT_SETSTORAGESD, AT_SETSTORAGESD_HELP_TEXT, nullptr, nullptr, at_set_sd_storage, AT_SETSTORAGESD_ARGS);
+    at->register_command(AT_STARTINGESTIONCYCLE, AT_STARTINGESTIONCYCLE_HELP_TEXT, at_start_ingestion, nullptr, nullptr, nullptr);
+    at->register_command(AT_INGESTIONCYCLESETTINGS, AT_INGESTIONCYCLESETTINGS_HELP_TEXT, nullptr, at_get_ingestion_settings, at_set_ingestion_settings, AT_INGESTIONCYCLESETTINGS_ARGS);
+    
     return at;
 }
 
@@ -124,6 +139,9 @@ static bool at_list_config(void)
     ei_printf("\n");
     ei_printf("===== Sampling parameters =====\n");
     at_get_sample_settings();
+    ei_printf("\n");
+    ei_printf("===== Ingestion parameters =====\n");
+    at_get_ingestion_settings();
     ei_printf("\n");
     ei_printf("===== Upload settings =====\n");
     at_get_upload_settings();
@@ -203,6 +221,7 @@ static bool at_sample_start(const char **argv, const int argc)
 
     for (size_t ix = 0; ix < sensor_list_size; ix++) {
         if (strcmp(sensor_list[ix].name, argv[0]) == 0) {
+            pei_device->set_sensor_label(argv[0], true);
             if (!sensor_list[ix].start_sampling_cb()) {
                 ei_printf("ERR: Failed to start sampling\n");
             }
@@ -211,6 +230,7 @@ static bool at_sample_start(const char **argv, const int argc)
     }
 
     if (ei_connect_fusion_list(argv[0], SENSOR_FORMAT)) {
+        pei_device->set_sensor_label(argv[0], true);
         if (!ei_fusion_setup_data_sampling()) {
             ei_printf("ERR: Failed to start sensor fusion sampling\n");
         }
@@ -262,7 +282,7 @@ static bool at_set_sample_settings(const char **argv, const int argc)
         return false;
     }
 
-    pei_device->set_sample_label(argv[0]);
+    pei_device->set_sample_label(argv[0], false);
 
     //TODO: sanity check and/or exception handling
     std::string interval_ms_str(argv[1]);
@@ -335,7 +355,6 @@ static bool at_run_nn_normal_cont(void)
  */
 static bool at_read_buffer(const char **argv, const int argc)
 {
-    EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
     bool success = false;
 
     if(argc < 2) {
@@ -345,7 +364,7 @@ static bool at_read_buffer(const char **argv, const int argc)
 
     if (pei_device != nullptr)
     {
-        dev->set_state(eiBrickMLStateUploading);
+        pei_device->set_state(eiBrickMLStateUploading);
 
         size_t start = (size_t)atoi(argv[0]);
         size_t length = (size_t)atoi(argv[1]);
@@ -380,7 +399,7 @@ static bool at_read_buffer(const char **argv, const int argc)
             ei_printf("\n");
         }
     }
-    dev->set_state(eiBrickMLStateIdle);
+    pei_device->set_state(eiBrickMLStateIdle);
 
     return success;
 }
@@ -563,8 +582,7 @@ static bool at_set_upload_host(const char **argv, const int argc)
  */
 static bool at_read_raw(const char **argv, const int argc)
 {
-    EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiFlashMemory* mem = static_cast<EiFlashMemory*>(pei_device->get_memory());
+    EiDeviceMemory* mem = pei_device->get_device_memory_in_use();
 
     if(argc < 2) {
         ei_printf("Missing argument! Required: " AT_READBUFFER_ARGS "\n");
@@ -576,7 +594,7 @@ static bool at_read_raw(const char **argv, const int argc)
 
     unsigned char buffer[32];
 
-    dev->set_state(eiBrickMLStateUploading);
+    pei_device->set_state(eiBrickMLStateUploading);
 
     for(; (start < length); start += 32)
     {
@@ -593,7 +611,7 @@ static bool at_read_raw(const char **argv, const int argc)
             return true;
     }
 
-    dev->set_state(eiBrickMLStateIdle);
+    pei_device->set_state(eiBrickMLStateIdle);
 
     return true;
 }
@@ -620,18 +638,123 @@ static bool at_unlink_file(const char **argv, const int argc)
  */
 static bool at_update_firmware(void)
 {
-    EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
     unsigned char retval = 0;
     ei_printf("Ready to update firmware\n");
 
-    dev->set_state(eiBrickMLStateUploading);
+    pei_device->set_state(eiBrickMLStateUploading);
     flash_handler_init();
     retval = XmodemDownloadAndProgramFlash(SECONDARY_IMAGE_START_ADDRESS);
     flash_handler_deinit();
-    dev->set_state(eiBrickMLStateIdle);
+    pei_device->set_state(eiBrickMLStateIdle);
     ei_printf("\r\nUpdate procedure exit with ret code: %d\r\n", retval);
 
     ei_printf("\n");
+
+    return true;
+}
+
+/**
+ *
+ * @param argv
+ * @param argc
+ * @return
+ */
+static bool at_set_sd_storage(const char **argv, const int argc)
+{
+    bool to_set = false;
+    bool ret_val = false;
+
+    if (check_args_num(1, argc) == false) {
+        return false;
+    }
+    if (pei_device != nullptr) {
+        if (strcmp(argv[0], "SET_SD") == 0) {
+            to_set = true;
+        }
+        pei_device->set_sd_storage(to_set);
+
+        ret_val = true;
+    }
+
+    ei_printf("OK\n");
+
+    return ret_val;
+}
+
+/**
+ * @brief 
+ * 
+ * @param argv 
+ * @param argc 
+ * @return true 
+ * @return false 
+ */
+static bool at_start_ingestion(void)
+{
+    if (pei_device->is_sd_present() == true) {
+        ingestion_thread_start();
+
+        ei_printf("OK\n");
+    }
+    else {
+        ei_printf("SD not found\r\n");
+    }
+
+    return true;
+}
+
+/**
+ * @brief 
+ * 
+ * @return true 
+ * @return false 
+ */
+static bool at_get_ingestion_settings(void)
+{
+    bool ret_val = false;
+
+    if (pei_device != nullptr) {
+        ei_printf("Sensor:         %s\n", pei_device->get_sensor_label().c_str());
+        ei_printf("Cycle length:   %lu ms\n", pei_device->get_long_recording_length_ms());
+        ei_printf("Cycle interval: %lu ms.\n", pei_device->get_long_recording_interval_ms());
+        ret_val = true;
+    }
+    else {
+
+    }
+
+    return ret_val;
+}
+
+/**
+ * @brief 
+ * 
+ * @param argv 
+ * @param argc 
+ * @return true 
+ * @return false 
+ */
+static bool at_set_ingestion_settings(const char **argv, const int argc)
+{
+    uint32_t sampling_time_ms = (uint32_t)atoi(argv[1]);
+    uint32_t interval_ms = (uint32_t)atoi(argv[2]);
+
+    if (check_args_num(3, argc) == false) {
+        return false;
+    }
+
+    if (interval_ms > sampling_time_ms ) {
+        ei_printf("Error: interval can't be larger than the total sampling time/r/n");
+        return false;
+    }
+
+    pei_device->set_sensor_label(argv[0], false);
+
+    pei_device->set_long_recording_length_ms(sampling_time_ms, false);
+    pei_device->set_long_recording_interval_ms(interval_ms, false);
+
+    pei_device->save_config();
+    ei_printf("OK\n");
 
     return true;
 }
@@ -646,9 +769,6 @@ static inline bool check_args_num(const int &required, const int &received)
     return true;
 }
 
-#include "at_base64_lib.h"
-#include "comms.h"
-
 /**
  * @brief 
  * 
@@ -659,8 +779,14 @@ static inline bool check_args_num(const int &required, const int &received)
  */
 static bool local_read_encode_send_sample_buffer(size_t address, size_t length)
 {
-    EiDeviceInfo *dev = EiDeviceInfo::get_device();
-    EiDeviceMemory *memory = dev->get_memory();
+    EiDeviceMemory* mem = pei_device->get_device_memory_in_use();
+
+    if (pei_device->is_sd_in_use()) {
+        //
+        EiSDMemory* sd = static_cast<EiSDMemory*>(mem);
+        sd->open_latest_file(false);
+    }
+
     // we are encoiding data into base64, so it needs to be divisible by 3
     const int buffer_size = 513;
     uint8_t* buffer = (uint8_t*)ei_malloc(buffer_size);
@@ -682,12 +808,22 @@ static bool local_read_encode_send_sample_buffer(size_t address, size_t length)
         if (bytes_to_read == 0) {
             ei_free(buffer);
             ei_free(buffer_out);
+            if (pei_device->is_sd_in_use()) {
+                //
+                EiSDMemory* sd = static_cast<EiSDMemory*>(mem);
+                sd->close_sample_file();
+            }
             return true;
         }
 
-        if (memory->read_sample_data(buffer, address, bytes_to_read) != bytes_to_read) {
+        if (mem->read_sample_data(buffer, address, bytes_to_read) != bytes_to_read) {
             ei_free(buffer);
             ei_free(buffer_out);
+            if (pei_device->is_sd_in_use()) {
+                //
+                EiSDMemory* sd = static_cast<EiSDMemory*>(mem);
+                sd->close_sample_file();
+            }
             return false;
         }
 

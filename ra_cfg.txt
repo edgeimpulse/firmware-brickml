@@ -24,6 +24,8 @@ FSP Configuration
     Security: SRAM Accessibility: Standby RAM: Regions 7-0 are all Secure.
     Security: BUS Accessibility: Bus Security Attribution Register A: Both Secure and Non-Secure State
     Security: BUS Accessibility: Bus Security Attribution Register B: Both Secure and Non-Secure State
+    Security: Flash Bank Select Accessibility: Both Secure and Non-Secure State
+    Security: Uninitialized Non-Secure Application Fallback: Enable Uninitialized Non-Secure Application Fallback
     Startup C-Cache Line Size: 32 Bytes
     OFS0 register settings: Independent WDT: Start Mode: IWDT is Disabled
     OFS0 register settings: Independent WDT: Timeout Period: 2048 cycles
@@ -39,6 +41,8 @@ FSP Configuration
     OFS0 register settings: WDT: Window Start Position: 100% (no window start position)
     OFS0 register settings: WDT: Reset Interrupt Request: Reset
     OFS0 register settings: WDT: Stop Control: Stop counting when entering Sleep mode
+    OFS1_SEL register settings: Voltage Detection 0 Level Security Attribution: VDSEL setting loads from OFS1_SEC
+    OFS1_SEL register settings: Voltage Detection 0 Circuit Start Security Attribution: LVDAS setting loads from OFS1_SEC
     OFS1 register settings: Voltage Detection 0 Circuit Start: Voltage monitor 0 reset is disabled after reset
     OFS1 register settings: Voltage Detection 0 Level: 2.80 V
     OFS1 register settings: HOCO Oscillation Enable: HOCO oscillation is disabled after reset
@@ -128,10 +132,10 @@ FSP Configuration
       P106 M1 - - - - Disabled - - "AGT0: AGTOB0; BUS_ASYNCH0: D06; GPT8: GTIOC8B; OSPI0: OMSIO0; SCI8: SCK8; SPI1: SSLB3" - None - - 
       P107 L2 - - - - Disabled - - "AGT0: AGTOA0; BUS_ASYNCH0: D07; GPT8: GTIOC8A; OSPI0: OMSIO3; SCI8: CTSRTS8" - None - - 
       P108 C3 DEBUG0_SWDIO - Low - "Peripheral mode" CMOS None "AGT3: AGTOA3; DEBUG0: SWDIO; DEBUG0: TMS; GPT_OPS0: GTOULO; GPT0: GTIOC0B; SCI9: CTSRTS9; SPI0: SSLA0" - IO - - 
-      P109 A1 - - - - Disabled - - "AGT3: AGTOB3; CAN1: CTX1; CGC0: CLKOUT; DEBUG0: TDO; DEBUG0: TRACESWO; GPT_OPS0: GTOVUP; GPT1: GTIOC1A; SCI9: SDA9; SCI9: TXD9; SPI0: MOSIA" - None - - 
-      P110 D3 - - - - Disabled - - "AGT3: AGTEE3; CAN1: CRX1; DEBUG0: TDI; GPT_OPS0: GTOVLO; GPT1: GTIOC1B; ICU0: IRQ03; SCI2: CTSRTS2; SCI9: RXD9; SCI9: SCL9; SPI0: MISOA" - None - - 
-      P111 D4 GPT3_GTIOC3A - High None "Peripheral mode" CMOS None "AGT5: AGTOA5; BUS_ASYNCH0: A05; GPT3: GTIOC3A; ICU0: IRQ04; SCI2: SCK2; SCI9: SCK9; SPI0: RSPCKA" - IO - - 
-      P112 B2 GPIO - High - "Output mode (Initial Low)" CMOS - "AGT5: AGTOB5; BUS_ASYNCH0: A04; GPT3: GTIOC3B; OSPI0: OMCS1; QSPI0: QSSL; SCI1: SCK1; SCI2: SDA2; SCI2: TXD2; SPI0: SSLA0; SSI0: SSIBCK0" - IO - - 
+      P109 A1 SPI0_MOSIA - Low - "Peripheral mode" CMOS None "AGT3: AGTOB3; CAN1: CTX1; CGC0: CLKOUT; DEBUG0: TDO; DEBUG0: TRACESWO; GPT_OPS0: GTOVUP; GPT1: GTIOC1A; SCI9: SDA9; SCI9: TXD9; SPI0: MOSIA" - IO - - 
+      P110 D3 SPI0_MISOA - Low None "Peripheral mode" CMOS None "AGT3: AGTEE3; CAN1: CRX1; DEBUG0: TDI; GPT_OPS0: GTOVLO; GPT1: GTIOC1B; ICU0: IRQ03; SCI2: CTSRTS2; SCI9: RXD9; SCI9: SCL9; SPI0: MISOA" - IO - - 
+      P111 D4 SPI0_RSPCKA - High None "Peripheral mode" CMOS None "AGT5: AGTOA5; BUS_ASYNCH0: A05; GPT3: GTIOC3A; ICU0: IRQ04; SCI2: SCK2; SCI9: SCK9; SPI0: RSPCKA" - IO - - 
+      P112 B2 GPIO SDCARD_CS Low - "Output mode (Initial High)" CMOS - "AGT5: AGTOB5; BUS_ASYNCH0: A04; GPT3: GTIOC3B; OSPI0: OMCS1; QSPI0: QSSL; SCI1: SCK1; SCI2: SDA2; SCI2: TXD2; SPI0: SSLA0; SSI0: SSIBCK0" - IO - - 
       P113 B1 GPIO - High - "Output mode (Initial Low)" CMOS - "AGT5: AGTEE5; BUS_ASYNCH0: A03; GPT2: GTIOC2A; SCI2: RXD2; SCI2: SCL2; SSI0: SSILRCK0" - IO - - 
       P114 C2 - - - - Disabled - - "AGT5: AGTIO5; BUS_ASYNCH0: A02; GPT2: GTIOC2B; SCI9: CTS9; SSI0: SSIRXD0" - None - - 
       P115 C1 GPIO - High - "Output mode (Initial Low)" CMOS - "BUS_ASYNCH0: A01; GPT4: GTIOC4A; SSI0: SSITXD0" - IO - - 
@@ -228,8 +232,8 @@ FSP Configuration
       P806 P12 - - - - Disabled - - "ICU0: IRQ00" - None - - 
       P900 A11 - - - - Disabled - - "BUS_ASYNCH0: A23; SCI4: SDA4; SCI4: TXD4" - None - - 
       P901 C10 - - - - Disabled - - "AGT1: AGTIO1; SCI4: SCK4" - None - - 
-      P905 B7 GPIO - - IRQ08 "Input mode" - "input pull-up" "ICU0: IRQ08; USB_FS0: USB_ID" - IO - - 
-      P906 A7 ICU0_IRQ09 - - IRQ09 "IRQ mode" - "input pull-up" "ICU0: IRQ09; USB_FS0: USB_EXICEN" - IO - - 
+      P905 B7 ICU0_IRQ08 - - IRQ08 "IRQ mode" - None "ICU0: IRQ08; USB_FS0: USB_ID" - IO - - 
+      P906 A7 - - - - Disabled - - "ICU0: IRQ09; USB_FS0: USB_EXICEN" - None - - 
       P907 D7 - - - - Disabled - - "ICU0: IRQ10; USB_HS0: USBHS_ID" - None - - 
       P908 D8 - - - - Disabled - - "ICU0: IRQ11; USB_HS0: USBHS_EXICEN" - None - - 
       PA00 H4 - - - - Disabled - - "SCI8: SDA8; SCI8: TXD8" - None - - 
@@ -238,7 +242,7 @@ FSP Configuration
       PA09 G4 - - - - Disabled - - "ICU0: IRQ05; USB_FS0: USB_OVRCURB" - None - - 
       PA10 G2 - - - - Disabled - - "ICU0: IRQ04" - None - - 
       PB00 J12 - - - - Disabled - - "SCI3: SCK3; USB_HS0: USBHS_VBUSEN" - None - - 
-      PB01 K13 USB_HS0_USBHS_VBUS - High - "Peripheral mode" CMOS None "SCI3: CTSRTS3; USB_HS0: USBHS_VBUS" - IO - - 
+      PB01 K13 - - - - Disabled - - "SCI3: CTSRTS3; USB_HS0: USBHS_VBUS" - None - - 
       PVSSUSBHS G15 USB_HS0_PVSS_USBHS - - - - - - - - IO "Read only" - 
       RES C9 SYSTEM0_RES - - - - - - - - IO "Read only" - 
       USBDM B14 USB_FS0_USB_DM - - - - - - - - IO "Read only" - 
@@ -315,12 +319,28 @@ FSP Configuration
     Parameter Checking: Default (BSP)
     Pin Output Support: Enabled
     Write Protect Enable: Disabled
-    Clock Source: PCLKD
+    
+  Module "QSPI (r_qspi)"
+    Parameter Checking: Default (BSP)
+    Support Multiple Line Program in Extended SPI Mode: Disabled
+    
+  Module "ADC (r_adc)"
+    Parameter Checking: Default (BSP)
+    
+  Module "I2C Master (r_iic_master)"
+    Parameter Checking: Default (BSP)
+    DTC on Transmission and Reception: Enabled
+    10-bit slave addressing: Disabled
+    
+  Module "SPI (r_spi)"
+    Parameter Checking: Default (BSP)
+    Enable Support for using a transfer API: Enabled
+    Enable Transmitting from RXI Interrupt: Disabled
     
   Module "USB PCDC (r_usb_pcdc)"
     Bulk In Pipe: USB PIPE1
     Bulk Out Pipe: USB PIPE2
-    Interrupt Out Pipe: USB PIPE6
+    Interrupt In Pipe: USB PIPE6
     
   Module "USB (r_usb_basic)"
     Parameter Checking: Default (BSP)
@@ -338,18 +358,6 @@ FSP Configuration
     DMA Destination Address: DMA Disabled
     USB Compliance Test mode: Disabled
     USB TPL table name: NULL
-    
-  Module "QSPI (r_qspi)"
-    Parameter Checking: Default (BSP)
-    Support Multiple Line Program in Extended SPI Mode: Disabled
-    
-  Module "ADC (r_adc)"
-    Parameter Checking: Default (BSP)
-    
-  Module "I2C Master (r_iic_master)"
-    Parameter Checking: Default (BSP)
-    DTC on Transmission and Reception: Disabled
-    10-bit slave addressing: Disabled
     
   FreeRTOS
     General: Custom FreeRTOSConfig.h: 
@@ -382,6 +390,7 @@ FSP Configuration
     General: Num Thread Local Storage Pointers: 5
     General: Stack Depth Type: uint32_t
     General: Message Buffer Length Type: size_t
+    Memory Allocation: Clear Memory on Free: Disabled
     Memory Allocation: Support Static Allocation: Enabled
     Memory Allocation: Support Dynamic Allocation: Enabled
     Memory Allocation: Total Heap Size: 262144
@@ -413,7 +422,6 @@ FSP Configuration
     Optional Functions: xTaskResumeFromISR() Function: Enabled
     RA: Hardware Stack Monitor: Disabled
     Logging: Print String Function: printf(x)
-    Logging: Logging Max Message Length: 192
     Logging: Logging Include Time and Task Name: Disabled
     
   HAL
@@ -426,9 +434,9 @@ FSP Configuration
       Pin Configuration Name: g_bsp_pin_cfg
       
     Instance "FreeRTOS Port (rm_freertos_port)"
-    Instance "g_external_irq9 External IRQ (r_icu)"
-      Name: g_external_irq9
-      Channel: 9
+    Instance "g_external_irq8 External IRQ (r_icu)"
+      Name: g_external_irq8
+      Channel: 8
       Trigger: Falling
       Digital Filtering: Disabled
       Digital Filtering Sample Clock (Only valid when Digital Filtering is Enabled): PCLK / 64
@@ -489,11 +497,10 @@ FSP Configuration
         Destination Address Mode: Incremented
         Source Address Mode: Fixed
         Repeat Area (Unused in Normal Mode): Destination
-        Destination Pointer: NULL
-        Source Pointer: NULL
         Interrupt Frequency: After all transfers have completed
         Number of Transfers: 0
         Number of Blocks (Valid only in Block Mode): 0
+        Number of Transfer Descriptors: 1
         Activation Source: SSI0 RXI (Receive data full)
         
     Instance "g_timer_i2s Timer, General PWM (r_gpt)"
@@ -534,8 +541,8 @@ FSP Configuration
       Extra Features: Output Disable: POEG Link: POEG Channel 0
       Extra Features: Output Disable: Output Disable POEG Trigger: 
       Extra Features: ADC Trigger: Start Event Trigger (Channels with GTINTAD only): 
-      Extra Features: Dead Time: Dead Time Count Up (Raw Counts): 0
-      Extra Features: Dead Time: Dead Time Count Down (Raw Counts) (Channels with GTDVD only): 0
+      Extra Features: Dead Time (Value range varies with Channel): Dead Time Count Up (Raw Counts): 0
+      Extra Features: Dead Time (Value range varies with Channel): Dead Time Count Down (Raw Counts) (Channels with GTDVD only): 0
       Extra Features: ADC Trigger (Channels with GTADTRA only): ADC A Compare Match (Raw Counts): 0
       Extra Features: ADC Trigger (Channels with GTADTRB only): ADC B Compare Match (Raw Counts): 0
       Extra Features: Interrupt Skipping (Channels with GTITC only): Interrupt to Count: None
@@ -605,6 +612,78 @@ FSP Configuration
       Interrupts: Window Compare B Interrupt Priority: Disabled
       Extra: ADC Ring Buffer: Disabled
       
+    Instance "g_spi0 SPI (r_spi)"
+      Name: g_spi0
+      Channel: 0
+      Receive Interrupt Priority: Priority 12
+      Transmit Buffer Empty Interrupt Priority: Priority 12
+      Transfer Complete Interrupt Priority: Priority 12
+      Error Interrupt Priority: Priority 12
+      Operating Mode: Master
+      Clock Phase: Data sampling on odd edge, data variation on even edge
+      Clock Polarity: Low when idle
+      Mode Fault Error: Disable
+      Bit Order: MSB First
+      Callback: spi_callback
+      SPI Mode: Clock Synchronous Operation
+      Full or Transmit Only Mode: Full Duplex
+      Slave Select Polarity: Active Low
+      Select SSL(Slave Select): SSL0
+      MOSI Idle State: MOSI Idle Value Fixing Disable
+      Parity Mode: Disabled
+      Byte Swapping: Disable
+      Bitrate: 16000000
+      Clock Delay: 1 Clock
+      SSL Negation Delay: 1 Clock
+      Next Access Delay: 1 Clock
+      
+      Instance "g_transfer1 Transfer (r_dtc) SPI0 TXI (Transmit buffer empty)"
+        Name: g_transfer1
+        Mode: Normal
+        Transfer Size: 2 Bytes
+        Destination Address Mode: Fixed
+        Source Address Mode: Incremented
+        Repeat Area (Unused in Normal Mode): Source
+        Interrupt Frequency: After all transfers have completed
+        Number of Transfers: 0
+        Number of Blocks (Valid only in Block Mode): 0
+        Number of Transfer Descriptors: 1
+        Activation Source: SPI0 TXI (Transmit buffer empty)
+        
+      Instance "g_transfer2 Transfer (r_dtc) SPI0 RXI (Receive buffer full)"
+        Name: g_transfer2
+        Mode: Normal
+        Transfer Size: 2 Bytes
+        Destination Address Mode: Incremented
+        Source Address Mode: Fixed
+        Repeat Area (Unused in Normal Mode): Destination
+        Interrupt Frequency: After all transfers have completed
+        Number of Transfers: 0
+        Number of Blocks (Valid only in Block Mode): 0
+        Number of Transfer Descriptors: 1
+        Activation Source: SPI0 RXI (Receive buffer full)
+        
+    Instance "g_pcdc USB PCDC (r_usb_pcdc)"
+      Name: g_pcdc
+      
+      Instance "g_basic USB (r_usb_basic)"
+        Name: g_basic
+        USB Mode: Peri mode
+        USB Speed: Full Speed
+        USB Module Number: USB_IP1 Port
+        USB Device Class: Peripheral Communications Device Class
+        USB Descriptor: g_usb_descriptor
+        USB Compliance Callback: NULL
+        USBFS Interrupt Priority: Priority 12
+        USBFS Resume Priority: Priority 12
+        USBFS D0FIFO Interrupt Priority: Priority 12
+        USBFS D1FIFO Interrupt Priority: Priority 12
+        USBHS Interrupt Priority: Priority 12
+        USBHS D0FIFO Interrupt Priority: Not Supported
+        USBHS D1FIFO Interrupt Priority: Not Supported
+        USB RTOS Callback: usb_cdc_rtos_callback
+        USB Callback Context: NULL
+        
   Thread "EiMainThread"
     Symbol: ei_main_thread
     Name: EiMainThread
@@ -653,8 +732,8 @@ FSP Configuration
       Extra Features: Output Disable: POEG Link: POEG Channel 0
       Extra Features: Output Disable: Output Disable POEG Trigger: 
       Extra Features: ADC Trigger: Start Event Trigger (Channels with GTINTAD only): 
-      Extra Features: Dead Time: Dead Time Count Up (Raw Counts): 0
-      Extra Features: Dead Time: Dead Time Count Down (Raw Counts) (Channels with GTDVD only): 0
+      Extra Features: Dead Time (Value range varies with Channel): Dead Time Count Up (Raw Counts): 0
+      Extra Features: Dead Time (Value range varies with Channel): Dead Time Count Down (Raw Counts) (Channels with GTDVD only): 0
       Extra Features: ADC Trigger (Channels with GTADTRA only): ADC A Compare Match (Raw Counts): 0
       Extra Features: ADC Trigger (Channels with GTADTRB only): ADC B Compare Match (Raw Counts): 0
       Extra Features: Interrupt Skipping (Channels with GTITC only): Interrupt to Count: None
@@ -677,35 +756,31 @@ FSP Configuration
       Callback: i2c_master_callback
       Interrupt Priority Level: Priority 12
       
-  Thread "UsbThread"
-    Symbol: usb_thread
-    Name: UsbThread
-    Stack size (bytes): 4000
-    Priority: 2
-    Thread Context: NULL
-    Memory Allocation: Static
-    Allocate Secure Context: Enable
-    
-    Instance "g_pcdc0 USB PCDC (r_usb_pcdc)"
-      Name: g_pcdc0
-      
-      Instance "g_basic0 USB (r_usb_basic)"
-        Name: g_basic0
-        USB Mode: Peri mode
-        USB Speed: Full Speed
-        USB Module Number: USB_IP1 Port
-        USB Device Class: Peripheral Communications Device Class
-        USB Descriptor: g_usb_descriptor
-        USB Compliance Callback: NULL
-        USBFS Interrupt Priority: Priority 1
-        USBFS Resume Priority: Priority 1
-        USBFS D0FIFO Interrupt Priority: Priority 1
-        USBFS D1FIFO Interrupt Priority: Priority 1
-        USBHS Interrupt Priority: Priority 1
-        USBHS D0FIFO Interrupt Priority: Not Supported
-        USBHS D1FIFO Interrupt Priority: Not Supported
-        USB RTOS Callback: usb_cdc_rtos_callback
-        USB Callback Context: NULL
+      Instance "g_transfer5 Transfer (r_dtc) IIC1 TXI (Transmit data empty)"
+        Name: g_transfer5
+        Mode: Normal
+        Transfer Size: 1 Byte
+        Destination Address Mode: Fixed
+        Source Address Mode: Incremented
+        Repeat Area (Unused in Normal Mode): Source
+        Interrupt Frequency: After all transfers have completed
+        Number of Transfers: 0
+        Number of Blocks (Valid only in Block Mode): 0
+        Number of Transfer Descriptors: 1
+        Activation Source: IIC1 TXI (Transmit data empty)
+        
+      Instance "g_transfer6 Transfer (r_dtc) IIC1 RXI (Receive data full)"
+        Name: g_transfer6
+        Mode: Normal
+        Transfer Size: 1 Byte
+        Destination Address Mode: Incremented
+        Source Address Mode: Fixed
+        Repeat Area (Unused in Normal Mode): Destination
+        Interrupt Frequency: After all transfers have completed
+        Number of Transfers: 0
+        Number of Blocks (Valid only in Block Mode): 0
+        Number of Transfer Descriptors: 1
+        Activation Source: IIC1 RXI (Receive data full)
         
   Thread "LedThread"
     Symbol: led_thread
@@ -734,5 +809,18 @@ FSP Configuration
     Symbol: g_new_state_queue
     Item Size (Bytes): 1
     Queue Length (Items): 20
+    Memory Allocation: Static
+    
+  Object "g_spi_binary_sempahore Binary Semaphore"
+    Symbol: g_spi_binary_sempahore
+    Memory Allocation: Static
+    
+  Object "g_brickml_event_group Event Group"
+    Symbol: g_brickml_event_group
+    Memory Allocation: Static
+    
+  Object "g_sd Mutex"
+    Symbol: g_sd
+    Type: Mutex
     Memory Allocation: Static
     

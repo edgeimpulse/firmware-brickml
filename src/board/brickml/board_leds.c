@@ -78,7 +78,6 @@ const bsp_leds_t g_bsp_leds =
  **********************************************************************************************************************/
 void led_update(led_state_t led_state)
 {
-#if 1
     switch(led_state)
     {
         case red:
@@ -121,9 +120,7 @@ void led_update(led_state_t led_state)
             break;
         }
     }
-#endif
 }
-
 
 void led_on(void)
 {
@@ -236,63 +233,6 @@ void pin_toggle(void)
         ASSERT( g_ioport.p_api->pinWrite( g_ioport.p_ctrl, BSP_IO_PORT_02_PIN_05, 0  ) == FSP_SUCCESS);
     }
 #endif
-}
-
-/******************************************************************************************/
-/* callback function for the S1 push button; writes the new level to LED2 and sends it    */
-/* through the USB to the PC                                                              */
-/******************************************************************************************/
-
-void button_init(void)
-{
-#if 1
-    g_external_irq9.p_api->open(g_external_irq9.p_ctrl, g_external_irq9.p_cfg);
-    g_external_irq9.p_api->enable(g_external_irq9.p_ctrl);
-#endif
-}
-
-uint8_t ui_button_status_get(void)
-{
-    uint8_t status = 0;
-
-    g_ioport.p_api->pinRead(g_ioport.p_ctrl, BSP_IO_PORT_02_PIN_10, (bsp_io_level_t*)&status);
-
-    return status;
-}
-
-uint8_t ui_button_toggle_get(void)
-{
-    static uint8_t button_old_status = 1;
-    static uint8_t button_status = 0;
-    uint8_t result = 0;
-
-    button_status = ui_button_status_get();
-
-    if ( (button_old_status == 0) && (button_status == 1) )
-    {
-        result = 1;
-    }
-
-    button_old_status = button_status;
-
-    return result;
-}
-
-/******************************************************************************************/
-/* callback function for the S1 push button; writes the new level to LED2 and sends it    */
-/* through the USB to the PC                                                              */
-/******************************************************************************************/
-void external_irq_button_callback(external_irq_callback_args_t *p_args)
-{
-    /* Not currently using p_args */
-    FSP_PARAMETER_NOT_USED(p_args);
-    //extern bsp_leds_t g_bsp_leds;
-    //bsp_leds_t Leds = g_bsp_leds;
-
-    //s1_pressed = true;
-    led_toggle();
-
-    //R_USB_Write (&g_basic0_ctrl, (uint8_t*) send_str, ((uint32_t) strlen (send_str)), (uint8_t) g_usb_class_type);
 }
 
 /** @} (end addtogroup BOARD_RA6M5_EK_LEDS) */

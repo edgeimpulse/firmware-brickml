@@ -20,6 +20,6 @@
 #include "firmware-sdk/at-server/ei_at_server.h"
 #include "ei_device_brickml.h"
 
-ATServer *ei_at_init(EiBrickml *device); /* TODO-RENAME Update the device class name */
+ATServer *ei_at_init(EiBrickml *device);
 
 #endif /* AT_HANDLERS_H_ */

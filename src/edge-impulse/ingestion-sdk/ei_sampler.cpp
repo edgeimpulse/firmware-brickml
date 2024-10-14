@@ -65,7 +65,7 @@ static sensor_aq_ctx ei_sensor_ctx = {
 bool ei_sampler_start_sampling(void *v_ptr_payload, starter_callback ei_sample_start, uint32_t sample_size)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
     sensor_aq_payload_info *payload = (sensor_aq_payload_info *)v_ptr_payload;
 
     ei_printf("Sampling settings:\n");
@@ -73,6 +73,7 @@ bool ei_sampler_start_sampling(void *v_ptr_payload, starter_callback ei_sample_s
     ei_printf_float((float)dev->get_sample_interval_ms());
     ei_printf(" ms.\n");
     ei_printf("\tLength: %lu ms.\n", dev->get_sample_length_ms());
+    ei_printf("\tSensor: %s\n", (dev->get_sensor_label().c_str()));
     ei_printf("\tName: %s\n", (dev->get_sample_label().c_str()));
     ei_printf("\tHMAC Key: %s\n", (dev->get_sample_hmac_key().c_str()));
     ei_printf("\tFile name: %s\n", dev->get_sample_label().c_str());
@@ -91,17 +92,22 @@ bool ei_sampler_start_sampling(void *v_ptr_payload, starter_callback ei_sample_s
         return false;
     }
 
+    if (mem->setup_sampling(dev->get_sensor_label().c_str(), dev->get_sample_label().c_str()) == false) {
+        ei_printf("ERR: can't setup_sampling\r\n");
+        return false;
+    }
+
     // if erasing took less than 2 seconds, wait additional time
     if(delay_time_ms < 2000) {
-        ei_sleep(2000 - delay_time_ms);
+        R_BSP_SoftwareDelay(2000 - delay_time_ms, BSP_DELAY_UNITS_MILLISECONDS);
     }
-    dev->set_state(eiBrickMLStateSampling);
 
     if (create_header(payload) == false) {
         return false;
     }
 
     ei_printf("Sampling...\n");
+    dev->set_state(eiBrickMLStateSampling);
 
     if (ei_sample_start(&sample_data_callback, dev->get_sample_interval_ms()) == false) {
         return false;
@@ -113,7 +119,7 @@ bool ei_sampler_start_sampling(void *v_ptr_payload, starter_callback ei_sample_s
     };
 
     ei_write_last_data();
-    mem->write_residual();
+    mem->flush_data();
 
     write_addr++;
     uint8_t final_byte[] = {0xff};
@@ -125,59 +131,12 @@ bool ei_sampler_start_sampling(void *v_ptr_payload, starter_callback ei_sample_s
 
     // finish the signing
     ctx_err = ei_sensor_ctx.signature_ctx->finish(ei_sensor_ctx.signature_ctx, ei_sensor_ctx.hash_buffer.buffer);
-
-#if 0
-    // load the first page in flash...
-    uint8_t *page_buffer = (uint8_t *)ei_malloc(mem->block_size);
-    if (!page_buffer) {
-        ei_printf("Failed to allocate a page buffer to write the hash\n");
+    if (ctx_err != 0) {
+        ei_printf("Failed to finish signature (%d)\r\n", ctx_err);
         return false;
     }
 
-    uint32_t j = mem->read_sample_data(page_buffer, 0, mem->block_size);
-    if (j != mem->block_size) {
-        ei_printf("Failed to read first page (%lu)\n", j);
-        ei_free(page_buffer);
-        return false;
-    }
-
-    // update the hash
-    uint8_t *hash = ei_sensor_ctx.hash_buffer.buffer;
-    // we have allocated twice as much for this data (because we also want to be able to represent
-    // in hex) thus only loop over the first half of the bytes as the signature_ctx has written to
-    // those
-    for (size_t hash_ix = 0; hash_ix < (ei_sensor_ctx.hash_buffer.size / 2); hash_ix++) {
-        // this might seem convoluted, but snprintf() with %02x is not always supported e.g. by
-        // newlib-nano we encode as hex... first ASCII char encodes top 4 bytes
-        uint8_t first = (hash[hash_ix] >> 4) & 0xf;
-        // second encodes lower 4 bytes
-        uint8_t second = hash[hash_ix] & 0xf;
-
-        // if 0..9 -> '0' (48) + value, if >10, then use 'a' (97) - 10 + value
-        char first_c = first >= 10 ? 87 + first : 48 + first;
-        char second_c = second >= 10 ? 87 + second : 48 + second;
-
-        page_buffer[ei_sensor_ctx.signature_index + (hash_ix * 2) + 0] = first_c;
-        page_buffer[ei_sensor_ctx.signature_index + (hash_ix * 2) + 1] = second_c;
-    }
-
-    j = mem->erase_sample_data(0, mem->block_size);
-    if (j != mem->block_size) {
-        ei_printf("Failed to erase first page (%lu)\n", j);
-        ei_free(page_buffer);
-        return false;
-    }
-
-    j = mem->write_sample_data(page_buffer, 0, mem->block_size);
-    mem->write_residual();
-    ei_free(page_buffer);
-
-    if (j != mem->block_size) {
-        ei_printf("Failed to write first page with updated hash (%lu)\n", j);
-        return false;
-    }
-#endif
-
+    mem->finalize_samplig();
     dev->set_state(eiBrickMLStateIdle);
 
     ei_printf("Done sampling, total bytes collected: %lu\n", samples_required);
@@ -226,7 +185,7 @@ static bool sample_data_callback(const void *sample_buf, uint32_t byteLenght)
 static size_t ei_write(const void *buffer, size_t size, size_t count, EI_SENSOR_AQ_STREAM *)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
 
     for (size_t i = 0; i < count; i++) {
         write_word_buf[write_addr & 0x3] = *((char *)buffer + i);
@@ -270,7 +229,8 @@ static time_t ei_time(time_t *t)
 static bool create_header(sensor_aq_payload_info *payload)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
+
     sensor_aq_init_mbedtls_hs256_context(&ei_sensor_signing_ctx, &ei_sensor_hs_ctx, dev->get_sample_hmac_key().c_str());
 
     int tr = sensor_aq_init(&ei_sensor_ctx, payload, NULL, true);
@@ -318,16 +278,35 @@ static bool create_header(sensor_aq_payload_info *payload)
 static void ei_write_last_data(void)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
     uint8_t fill = ((uint8_t)write_addr & 0x03);
     uint8_t insert_end_address = 0;
 
-    if (fill != 0x00) {
-        for (uint8_t i = fill; i < 4; i++) {
-            write_word_buf[i] = 0xFF;
+    if (dev->is_sd_in_use() == true) {  // if sd, i need to appen 0xFF
+        if (fill != 0x03) {
+            write_word_buf[fill] = 0xFF;
+            mem->write_sample_data(write_word_buf, (write_addr & ~0x03) + headerOffset, (fill + 1));
+        }
+        else {
+            write_word_buf[0] = 0xFF;
+            mem->write_sample_data(write_word_buf, (write_addr & ~0x03) + headerOffset, 1);
+        }
+    }
+    else {
+        if (fill != 0x00) {
+            for (uint8_t i = fill; i < 4; i++) {
+                write_word_buf[i] = 0xFF;
+            }
+
+            mem->write_sample_data(write_word_buf, (write_addr & ~0x03) + headerOffset, 4);
+            insert_end_address = 4;
         }
 
-        mem->write_sample_data(write_word_buf, (write_addr & ~0x03) + headerOffset, 4);
+        /* Write appending word for end character */
+        for (uint8_t i =0 ; i < 4; i++) {
+            write_word_buf[i] = 0xFF;
+        }
+        mem->write_sample_data(write_word_buf, (write_addr & ~0x03) + headerOffset + insert_end_address, 4);
     }
 
 }

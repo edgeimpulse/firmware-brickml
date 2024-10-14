@@ -13,12 +13,17 @@
  * limitations under the License.
  *
  */
-/* Include ----------------------------------------------------------------- */
-#include <usb_thread.h>
+
+#include "FreeRTOS.h"
+#include "task.h"
 #include "usb_thread_interface.h"
 #include "comms.h"
 #include "portmacro.h"
 #include <string.h>
+#include "brickml_events.h"
+
+#define USB_TASK_PRIORITY           (configMAX_PRIORITIES - 2)
+#define USB_TASK_STACK_SIZE_BYTE    (4096u)
 
 #define UART_RX_BUFFER_SIZE         2048
 static uint8_t g_temp_buffer[UART_RX_BUFFER_SIZE] = {0};
@@ -28,25 +33,38 @@ static uint32_t g_rx_index = 0;
 /* Index of data sent to at hanlder */
 static uint32_t g_uart_rx_read_index = 0;
 
+/* FreeRTOS module */
+TaskHandle_t usb_thread;
+
 static void usb_read(void);
+static void usb_thread_entry(void *pvParameters);
+
+void start_usb_thread(void)
+{
+    /* create a task to send data via usb */
+    xTaskCreate(usb_thread_entry,
+        (const char*) "USB PCDC Thread",
+        USB_TASK_STACK_SIZE_BYTE / 4, // in words
+        NULL, //pvParameters
+        USB_TASK_PRIORITY, //uxPriority
+        &usb_thread);
+}
 
 /* UsbThread entry function */
 /* pvParameters contains TaskHandle_t */
-void usb_thread_entry(void *pvParameters)
+static void usb_thread_entry(void *pvParameters)
 {
     FSP_PARAMETER_NOT_USED (pvParameters);
     fsp_err_t err = FSP_SUCCESS;
 
     /* Open the comms driver */
     err = comms_open((uint8_t)true);
-    if (FSP_SUCCESS != err)
-    {
+    if (FSP_SUCCESS != err) {
         /* Stop as comms close failure */
         __BKPT(1);
     }
 
-    while (1)
-    {
+    while (1) {
         usb_read();
         vTaskDelay (1);
     }
@@ -118,6 +136,7 @@ static void usb_read(void)
     uint32_t read = 0;
     if (comms_read(&g_temp_buffer[0], &read, portMAX_DELAY) == FSP_SUCCESS) {
         g_rx_index += read;
+        xEventGroupSetBits(g_brickml_event_group, EVENT_RX_READY);
     }
 }
 

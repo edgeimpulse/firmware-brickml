@@ -25,7 +25,6 @@
 #include "event_groups.h"
 #include "common_assert.h"
 #include "r_i2c_master_api.h"
-#include "common_data.h"
 #include "ei_main_thread.h"
 
 /* Global Variables -------------------------------------------------------- */
@@ -54,7 +53,7 @@ int ei_i2c_init(void)
         ret = g_i2c_master0.p_api->slaveAddressSet( g_i2c_master0.p_ctrl, 0x44, I2C_MASTER_ADDR_MODE_7BIT );
     }
 
-    i2c_riic0_event_handle = xEventGroupCreateStatic( &i2c_riic1_event_buf );
+    i2c_riic0_event_handle = xEventGroupCreateStatic(&i2c_riic1_event_buf);
 
     return (int)ret;
 }

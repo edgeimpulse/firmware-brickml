@@ -35,7 +35,7 @@ private:
 protected:
 
 public:
-    void write_residual(void);
+    uint32_t flush_data(void) override;
     uint32_t read_sample_data(uint8_t *sample_data, uint32_t address, uint32_t sample_data_size);
     uint32_t write_sample_data(uint8_t *sample_data, uint32_t address, uint32_t sample_data_size);
     uint32_t erase_sample_data(uint32_t address, uint32_t num_bytes);

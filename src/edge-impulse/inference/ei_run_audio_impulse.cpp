@@ -48,6 +48,10 @@ static bool debug_mode = false;
 static int samples_wr_index = 0;
 static uint32_t i2s_buf_len = 0;
 
+/* ------------------------------------------------------------------------- */
+/**
+ *
+ */
 void ei_run_impulse(void)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());

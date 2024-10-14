@@ -33,7 +33,7 @@ protected:
     uint32_t write_data(const uint8_t *data, uint32_t address, uint32_t num_bytes) override;
     uint32_t erase_data(uint32_t address, uint32_t num_bytes) override;
 public:
-    void write_residual(void);
+    uint32_t flush_data(void) override;
     EiQspiMemory();
 };
 

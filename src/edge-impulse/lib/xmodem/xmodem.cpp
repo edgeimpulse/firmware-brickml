@@ -25,7 +25,7 @@
 #include <string.h>
 #include "xmodem.h"
 #include "comms.h"
-#include "hal_data.h"
+//#include "hal_data.h"
 #include "peripheral/board_ctrl.h"
 #include "usb_thread_interface.h"
 

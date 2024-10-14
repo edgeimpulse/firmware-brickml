@@ -25,11 +25,6 @@
 #include "firmware-sdk/sensor-aq/sensor_aq.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
 
-//#include "ei_dc_blocking.h"
-#define FAKE_ON 0
-#if FAKE_ON == 1
-#include "fake_mic.h"
-#endif
 /* Constant ---------------------------------------------------------------- */
 #define MIC_USE_DC_BLOCKING         (0u)
 
@@ -76,7 +71,7 @@ static sensor_aq_ctx ei_mic_ctx = {
 bool ei_microphone_sample_start(void)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
 
     int ret;
     uint32_t required_samples;
@@ -91,11 +86,11 @@ bool ei_microphone_sample_start(void)
     };
 
     ei_printf("Sampling settings:\n");
-    //ei_printf("\tInterval: %.5f ms.\n", dev->get_sample_interval_ms());
     ei_printf("\tInterval: ");
     ei_printf_float(dev->get_sample_interval_ms());
     ei_printf(" ms.\n");
     ei_printf("\tLength: %lu ms.\n", dev->get_sample_length_ms());
+    ei_printf("\tSensor: %s\n", (dev->get_sensor_label().c_str()));
     ei_printf("\tName: %s\n", dev->get_sample_label().c_str());
     ei_printf("\tHMAC Key: %s\n", dev->get_sample_hmac_key().c_str());
     ei_printf("\tFile name: %s\n", dev->get_sample_label().c_str());
@@ -110,22 +105,28 @@ bool ei_microphone_sample_start(void)
     required_samples_size = required_samples * sizeof(microphone_sample_t);
     current_sample = 0;
 
-    if(required_samples_size > mem->get_available_sample_bytes()) {
-        ei_printf("ERR: Sample length is too long. Maximum allowed is %lu ms at 16000 Hz.\r\n",
-          ((mem->get_available_sample_bytes() / (16000 * sizeof(microphone_sample_t))) * 1000));
+    if (required_samples_size > mem->get_available_sample_bytes()) {
+        ei_printf("ERR: Sample length is too long. Maximum allowed is %lu ms at %d Hz.\r\n",
+          ((mem->get_available_sample_bytes() / (freq * sizeof(microphone_sample_t))) * 1000), freq);
       return false;
     }
 
     uint32_t delay_time_ms = ((required_samples_size / mem->block_size) + 1) * mem->block_erase_time;
     ei_printf("Starting in %lu ms... (or until all flash was erased)\n", delay_time_ms < 2000 ? 2000 : delay_time_ms);
 
+    dev->set_state(eiBrickMLStateErasingFlash);
     if(mem->erase_sample_data(0, required_samples_size) != (required_samples_size)) {
        return false;
+    }
+    
+    if (mem->setup_sampling(dev->get_sensor_label().c_str(), dev->get_sample_label().c_str()) == false) {
+        ei_printf("ERR: can't setup_sampling\r\n");
+        return false;
     }
 
     // if erasing took less than 2 seconds, wait additional time
     if(delay_time_ms < 2000) {
-       ei_sleep(2000 - delay_time_ms);
+       R_BSP_SoftwareDelay(2000 - delay_time_ms, BSP_DELAY_UNITS_MILLISECONDS);
     }
 
     if (create_header(&payload) == false) {
@@ -141,6 +142,7 @@ bool ei_microphone_sample_start(void)
 
     first_sample = true;
     ei_printf("Sampling...\r\n");
+    dev->set_state(eiBrickMLStateSampling);
 
     while (current_sample < required_samples_size) {
         ei_mic_thread(&ingestion_samples_callback, i2s_buf_len);
@@ -149,7 +151,7 @@ bool ei_microphone_sample_start(void)
 
     ei_mic_deinit();
 
-    mem->write_residual();  /* write any additional data */
+    mem->flush_data();  /* write any additional data */    
 
     ret = ei_mic_ctx.signature_ctx->finish(ei_mic_ctx.signature_ctx, ei_mic_ctx.hash_buffer.buffer);
     if (ret != 0) {
@@ -157,58 +159,8 @@ bool ei_microphone_sample_start(void)
         return false;
     }
 
-#if 0
-
-    uint8_t *page_buffer;
-    // load the first page in flash...
-    page_buffer = (uint8_t*)ei_malloc(mem->block_size);
-    if (!page_buffer) {
-        ei_printf("Failed to allocate a page buffer to write the hash\n");
-        return false;
-    }
-
-    ret = mem->read_sample_data(page_buffer, 0, mem->block_size);
-    if ((uint32_t)ret != mem->block_size) {
-        ei_printf("Failed to read first page (read %d, requersted %lu)\n", ret, mem->block_size);
-        ei_free(page_buffer);
-        return false;
-    }
-
-    // update the hash
-    uint8_t *hash = ei_mic_ctx.hash_buffer.buffer;
-    // we have allocated twice as much for this data (because we also want to be able to represent in hex)
-    // thus only loop over the first half of the bytes as the signature_ctx has written to those
-    for (size_t hash_ix = 0; hash_ix < ei_mic_ctx.hash_buffer.size / 2; hash_ix++) {
-     // this might seem convoluted, but snprintf() with %02x is not always supported e.g. by newlib-nano
-     // we encode as hex... first ASCII char encodes top 4 bytes
-     uint8_t first = (hash[hash_ix] >> 4) & 0xf;
-     // second encodes lower 4 bytes
-     uint8_t second = hash[hash_ix] & 0xf;
-
-     // if 0..9 -> '0' (48) + value, if >10, then use 'a' (97) - 10 + value
-     char first_c = first >= 10 ? 87 + first : 48 + first;
-     char second_c = second >= 10 ? 87 + second : 48 + second;
-
-     page_buffer[ei_mic_ctx.signature_index + (hash_ix * 2) + 0] = first_c;
-     page_buffer[ei_mic_ctx.signature_index + (hash_ix * 2) + 1] = second_c;
-    }
-
-    ret = mem->erase_sample_data(0, mem->block_size);
-    if ((uint32_t)ret != mem->block_size) {
-     ei_printf("Failed to erase first page (read %d, requested %lu)\n", ret, mem->block_size);
-     ei_free(page_buffer);
-     return false;
-    }
-
-    ret = mem->write_sample_data(page_buffer, 0, mem->block_size);
-    mem->write_residual();
-    ei_free(page_buffer);
-
-    if ((uint32_t)ret != mem->block_size) {
-     ei_printf("Failed to write first page with updated hash (read %d, requested %lu)\n", ret, mem->block_size);
-     return false;
-    }
-#endif
+    mem->finalize_samplig();
+    dev->set_state(eiBrickMLStateIdle);
 
     ei_printf("Done sampling, total bytes collected: %lu\n", required_samples_size);
     ei_printf("[1/1] Uploading file to Edge Impulse...\n");
@@ -275,7 +227,7 @@ void inference_samples_callback(const int16_t *buffer, uint32_t sample_count)
 static void ingestion_samples_callback(const int16_t *buffer, uint32_t sample_count)
 {
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
 
     if (first_sample == true) {
         first_sample = false;
@@ -456,7 +408,7 @@ static bool create_header(sensor_aq_payload_info *payload)
 {
     int ret;
     EiBrickml* dev = static_cast<EiBrickml*>(EiDeviceInfo::get_device());
-    EiQspiMemory* mem = static_cast<EiQspiMemory*>(dev->get_memory());
+    EiDeviceMemory* mem = dev->get_device_memory_in_use();
     sensor_aq_init_mbedtls_hs256_context(&ei_mic_signing_ctx, &ei_mic_hs_ctx, dev->get_sample_hmac_key().c_str());
 
     ret = sensor_aq_init(&ei_mic_ctx, payload, NULL, true);

@@ -25,6 +25,8 @@
 #include "trace_use.h"
 #include "version.h"
 #include "comms/comms.h"
+#include "brickml_events.h"
+#include "ingestion_thread.h"
 //#include "config.h"   // for BLE
 #include "ingestion-sdk-platform/brickml/ei_at_handlers.h"
 #include "ingestion-sdk-platform/brickml/ei_device_brickml.h"
@@ -37,7 +39,12 @@
 #include "peripheral/i2c.h"
 #include "peripheral/i2s.h"
 #include "peripheral/timer_handler.h"
+#include "peripheral/user_button.h"
 
+#if (BRICKML_SOM == 0)
+#include "peripheral/spi_drv.h"
+#include "peripheral/sd/sd_handler.h"
+#endif
 
 // Sensors, probably will move
 #include "sensors/ei_inertial.h"
@@ -70,8 +77,9 @@ EiBrickml* p_dev;
 /* pvParameters contains TaskHandle_t */
 void ei_main_thread_entry(void *pvParameters)
 {
-    uint32_t retval = 0;
     FSP_PARAMETER_NOT_USED (pvParameters);
+    EventBits_t events;
+    bool in_rx_loop = false;
     
     p_dev =  static_cast<EiBrickml*>(EiDeviceInfo::get_device());
 
@@ -83,18 +91,8 @@ void ei_main_thread_entry(void *pvParameters)
     ei_i2s_driver_init();
     ei_timer_init();
 
-    if ( xSemaphoreTake( g_usb_ready, portMAX_DELAY ) == pdFALSE ) {
-        // error ! possible ?
-        while(1) {
-
-        }
-    }
-
-    do {
-        vTaskDelay(100);  // improve!
-    }while (comms_get_is_open() == false);
-
-    Trace_build( &g_uart_trace );
+    p_dev->init_sd();
+    start_usb_thread();
 
     at = ei_at_init(p_dev);
 
@@ -109,23 +107,43 @@ void ei_main_thread_entry(void *pvParameters)
     at->print_prompt();
     led_on();
 
-    while(1)
-    {
+    button_init();// ok enable the button
+
+    while(1) {
+        events = xEventGroupWaitBits(g_brickml_event_group, EVENT_RX_READY | BRICKML_EVENT_BUTTON, pdTRUE, pdFALSE , portMAX_DELAY);
+
+        // rx console event
+        if (events & EVENT_RX_READY) {
+            char data = ei_get_serial_byte(is_inference_running());
+
+            in_rx_loop = false;
+
+            while ((uint8_t)data != 0xFF) {
+
+                if ((is_inference_running() == true) && (data == 'b') && (in_rx_loop == false)) {
+                    ei_stop_impulse();
+                    at->print_prompt();
+                    continue;
+                }
+
+                at->handle(data);
+                data = ei_get_serial_byte((uint8_t)is_inference_running());
+            }
+        }
+        else if (events & BRICKML_EVENT_BUTTON) {
+            if (p_dev->is_sd_in_use() == true) {
+                if (ingestion_thread_start() == false) {
+                    ei_printf("Failed to run ingestion thread\r\n");
+                }
+            }
+            else {
+                ei_printf("SD not found or not selected as main memory\r\n");
+            }
+        }
         /* handle command comming from uart */
         char data = ei_get_serial_byte((uint8_t)is_inference_running());
 
-        while ((uint8_t)data != 0xFF) {
-            //led_blue_on();
-            if(is_inference_running() && data == 'b') {
-            ei_stop_impulse();
-            at->print_prompt();
-            continue;
-            }
-
-            at->handle(data);
-            data = ei_get_serial_byte((uint8_t)is_inference_running());
-        }
-
+        // how to ?
         if (is_inference_running() == true) {
             ei_run_impulse();
         }
@@ -137,4 +155,3 @@ void ei_main_thread_entry(void *pvParameters)
         vTaskDelay (portMAX_DELAY);
     }
 }
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 EdgeImpulse Inc.
+ * Copyright (c) 2023 EdgeImpulse Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 EiQspiMemory::EiQspiMemory():
     EiDeviceMemory(0, 90, QSPI_MEMORY_SIZE, SECTOR_SIZE)
 {
+    used_blocks = 0;    // config is done in data flash (for now)
+    //flash_handler_init();
     residual_to_write = 0;
     memset(residual_array, 0, sizeof(residual_array));
     last_offset = 0;
@@ -114,7 +116,7 @@ uint32_t EiQspiMemory::erase_data(uint32_t address, uint32_t num_bytes)
 /**
  *
  */
-void EiQspiMemory::write_residual(void)
+uint32_t EiQspiMemory::flush_data(void)
 {
     uint32_t written = 0;
 
@@ -132,5 +134,7 @@ void EiQspiMemory::write_residual(void)
         residual_to_write = 0;
         memset(residual_array, 0xFF, sizeof(residual_array));   /* fill with 0xFF */
     }
+
+    return 0;
 
 }

@@ -1,8 +1,11 @@
+#include "FreeRTOS.h"
+#include "common_data.h"
 #include "../comms.h"
 #include "r_usb_pcdc_api.h"
 #include "r_usb_basic.h"
 #include "task.h"
 #include <stdbool.h>
+
 
 #ifdef COMMS_USB
 
@@ -72,23 +75,18 @@ usb_pcdc_linecoding_t g_line_coding_fs = {
 
 uint8_t g_comms_opened_flag = 0;
 
-extern usb_instance_ctrl_t g_basic0_ctrl;
-extern const usb_cfg_t g_basic0_cfg;
+extern usb_instance_ctrl_t g_basic_ctrl;
+extern const usb_cfg_t g_basic_cfg;
 
 fsp_err_t comms_send_low(uint8_t * p_src, uint32_t len, uint32_t period);
 
 void usb_cdc_rtos_callback(usb_event_info_t * event, usb_hdl_t handle, usb_onoff_t onoff)
-{
+{    
     //FSP_PARAMETER_NOT_USED(event);
     FSP_PARAMETER_NOT_USED(handle);
     FSP_PARAMETER_NOT_USED(onoff);
-
-    BaseType_t xHigherPriorityTaskWoken;
-
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     usb_setup_t             setup;
-
-    /* We have not woken a task at the start of the ISR. */
-    xHigherPriorityTaskWoken = pdFALSE;
 
     switch (event->event)
     {
@@ -101,8 +99,7 @@ void usb_cdc_rtos_callback(usb_event_info_t * event, usb_hdl_t handle, usb_onoff
             }
         break;
         case USB_STATUS_READ_COMPLETE :
-            if (pdTRUE == xQueueSendFromISR(g_usb_read_queue, &event->data_size, &xHigherPriorityTaskWoken ) )
-            {
+            if (pdTRUE == xQueueSendFromISR(g_usb_read_queue, &event->data_size, &xHigherPriorityTaskWoken ) ) {
                 __NOP();
             }
 
@@ -116,21 +113,22 @@ void usb_cdc_rtos_callback(usb_event_info_t * event, usb_hdl_t handle, usb_onoff
             else if (USB_PCDC_SET_LINE_CODING == (setup.request_type & USB_BREQUEST))
             {
                 /* Configure virtual UART settings */
-                g_usb_on_usb.periControlDataGet(&g_basic0_ctrl, (uint8_t *) &g_line_coding, LINE_CODING_LENGTH);
+                g_usb_on_usb.periControlDataGet(&g_basic_ctrl, (uint8_t *) &g_line_coding, LINE_CODING_LENGTH);
                 if (g_line_coding.dw_dte_rate != g_line_coding_in_use.dw_dte_rate) {
                     g_line_coding_in_use.dw_dte_rate = g_line_coding.dw_dte_rate ;
                 }
             }
             else if (USB_PCDC_SET_CONTROL_LINE_STATE == (event->setup.request_type & USB_BREQUEST))
             {
-                //g_usb_on_usb.periControlStatusSet(&g_basic0_ctrl, USB_SETUP_STATUS_ACK);
+                //g_usb_on_usb.periControlStatusSet(&g_basic_ctrl, USB_SETUP_STATUS_ACK);
                 fsp_err_t err = g_usb_on_usb.periControlDataGet(event, (uint8_t *) &g_control_line_state, sizeof(g_control_line_state));
                 if (FSP_SUCCESS == err)
                 {
                     g_control_line_state.bdtr = (unsigned char)((event->setup.request_value >> 0) & 0x01);
                     g_control_line_state.brts = (unsigned char)((event->setup.request_value >> 1) & 0x01);
                     g_comms_opened_flag = 1;
-                    g_usb_on_usb.periControlStatusSet(&g_basic0_ctrl, USB_SETUP_STATUS_ACK);
+                    g_usb_on_usb.periControlStatusSet(&g_basic_ctrl, USB_SETUP_STATUS_ACK);
+                    xSemaphoreGiveFromISR(g_usb_ready, &xHigherPriorityTaskWoken);
                 }
 
             }
@@ -157,11 +155,17 @@ void usb_cdc_rtos_callback(usb_event_info_t * event, usb_hdl_t handle, usb_onoff
     portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
 }
 
+/**
+ * @brief 
+ * 
+ * @param wait 
+ * @return fsp_err_t 
+ */
 fsp_err_t comms_open(uint8_t wait)
 {
     fsp_err_t err;
 
-    err = g_usb_on_usb.open(&g_basic0_ctrl, &g_basic0_cfg);
+    err = g_usb_on_usb.open(&g_basic_ctrl, &g_basic_cfg);
     if (FSP_SUCCESS != err)
     {
         return (err);
@@ -169,15 +173,8 @@ fsp_err_t comms_open(uint8_t wait)
 
     if (wait)
     {
-        /* Wait for the application to open the COM port */
-        while (0 == g_control_line_state.bdtr)
-        {
-            vTaskDelay(1);
-        }
-
-        if (pdTRUE == xSemaphoreGive(g_usb_ready))
-        {
-            __NOP();
+        if ( xSemaphoreTake( g_usb_ready, portMAX_DELAY ) == pdFALSE ) {
+            return FSP_ERR_ABORTED;
         }
 
         g_comms_opened_flag = 1;
@@ -186,6 +183,14 @@ fsp_err_t comms_open(uint8_t wait)
     return FSP_SUCCESS;
 }
 
+/**
+ * @brief 
+ * 
+ * @param p_src 
+ * @param len 
+ * @param period 
+ * @return fsp_err_t 
+ */
 fsp_err_t comms_send(uint8_t * p_src, uint32_t len, uint32_t period)
 {
     fsp_err_t       err = FSP_SUCCESS;
@@ -280,7 +285,7 @@ fsp_err_t comms_send_low(uint8_t * p_src, uint32_t len, uint32_t period)
     timeout = 2;
     timeout += len/1024;
 #if 1
-    err = g_usb_on_usb.write(&g_basic0_ctrl, p_src, len,  USB_CLASS_PCDC);
+    err = g_usb_on_usb.write(&g_basic_ctrl, p_src, len,  USB_CLASS_PCDC);
     if (FSP_SUCCESS != err)
     {
         usb_tx_error_counter++;
@@ -354,8 +359,8 @@ fsp_err_t comms_read(uint8_t * p_dest, uint32_t * len, uint32_t timeout_millisec
     if (0 == g_comms_opened_flag)
         return FSP_ERR_BLE_INIT_FAILED;
 
-    //err = g_usb_on_usb.read(&g_basic0_ctrl, p_dest, MAX_PACKET_SIZE,  USB_CLASS_PCDC);
-    err = g_usb_on_usb.read(&g_basic0_ctrl, p_dest, 512,  USB_CLASS_PCDC);
+    //err = g_usb_on_usb.read(&g_basic_ctrl, p_dest, MAX_PACKET_SIZE,  USB_CLASS_PCDC);
+    err = g_usb_on_usb.read(&g_basic_ctrl, p_dest, 512,  USB_CLASS_PCDC);
     if (FSP_SUCCESS != err)
     {
         return FSP_ERR_USB_FAILED;
@@ -383,7 +388,7 @@ fsp_err_t comms_read(uint8_t * p_dest, uint32_t * len, uint32_t timeout_millisec
         //trans.type            = USB_CLASS_PCDC;
         //trans.module_number   = USB_CFG_USE_USBIP;
         //err = g_usb_on_usb.stop(&g_ctrl, USB_TRANSFER_READ, &trans);
-        err = g_usb_on_usb.stop(&g_basic0_ctrl, USB_TRANSFER_READ, USB_CLASS_PCDC);
+        err = g_usb_on_usb.stop(&g_basic_ctrl, USB_TRANSFER_READ, USB_CLASS_PCDC);
 
         *len = 0;
 
@@ -400,7 +405,7 @@ fsp_err_t comms_close(void)
 {
     fsp_err_t err;
 
-    err = g_usb_on_usb.close(&g_basic0_ctrl);
+    err = g_usb_on_usb.close(&g_basic_ctrl);
     if (FSP_SUCCESS != err)
     {
         return (err);

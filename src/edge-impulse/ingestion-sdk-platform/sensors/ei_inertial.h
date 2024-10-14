@@ -35,7 +35,7 @@ static const ei_device_fusion_sensor_t inertial_sensor = {
     // number of sensor module axis
     INERTIAL_AXIS_SAMPLED,
     // sampling frequencies
-    { 20.0f, 62.5f, 100.0f, 250.0f, 500.0f },
+    { 20.0f, 62.5f, 100.0f },
     // axis name and units payload (must be same order as read in)
     { {"accX", "m/s2"}, {"accY", "m/s2"}, {"accZ", "m/s2"}, {"gyrX", "dps"}, {"gyrY", "dps"}, {"gyrZ", "dps"}},
     // reference to read data function
@@ -48,7 +48,7 @@ static const ei_device_fusion_sensor_t mag_sensor = {
     // number of sensor module axis
     MAG_AXIS_SAMPLED,
     // sampling frequencies
-    { 12.5f, 25.0f },
+    { 12.5f, 30.0f },
     // axis name and units payload (must be same order as read in)
     { {"magX", "uT"}, {"magY", "uT"}, {"magZ", "uT"} },
     // reference to read data function

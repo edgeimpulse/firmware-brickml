@@ -94,10 +94,6 @@ void led_blue_off(void);
 void led_blue_toggle(void);
 
 void pin_toggle(void);
-void button_init(void);
-
-uint8_t ui_button_status_get(void);
-uint8_t ui_button_toggle_get(void);
 
 /** Common macro for FSP header files. There is also a corresponding FSP_HEADER macro at the top of this file. */
 FSP_FOOTER
