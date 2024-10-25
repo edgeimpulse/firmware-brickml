@@ -29,6 +29,7 @@
 #include "ingestion-sdk-platform/brickml/ei_device_brickml.h"
 #include "firmware-sdk/ei_device_info_lib.h"
 #include "firmware-sdk/ei_fusion.h"
+#include "inference_thread_interface.h"
 
 typedef enum {
     INFERENCE_STOPPED,
@@ -236,6 +237,8 @@ void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
         state = INFERENCE_WAITING;
         dev->set_state(eiBrickMLStateIdle);
     }
+
+    start_inference_thread();
 }
 
 /**

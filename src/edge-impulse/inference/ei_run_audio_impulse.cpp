@@ -29,6 +29,7 @@
 #include "ingestion-sdk-platform/brickml/ei_device_brickml.h"
 #include "model-parameters/model_variables.h"
 #include "peripheral/i2s.h"
+#include "inference_thread_interface.h"
 
 typedef enum {
     INFERENCE_STOPPED,
@@ -188,6 +189,8 @@ void ei_start_impulse(bool continuous, bool debug, bool use_max_uart_speed)
         ei_printf("ERR: Could not allocate audio buffer (size %d), this could be due to the window length of your model\r\n", EI_CLASSIFIER_RAW_SAMPLE_COUNT);
         return;
     }
+
+    start_inference_thread();
 }
 
 /**

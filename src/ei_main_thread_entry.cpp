@@ -143,10 +143,6 @@ void ei_main_thread_entry(void *pvParameters)
         /* handle command comming from uart */
         char data = ei_get_serial_byte((uint8_t)is_inference_running());
 
-        // how to ?
-        if (is_inference_running() == true) {
-            ei_run_impulse();
-        }
     }
 
     while (1)
